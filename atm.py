@@ -1,30 +1,61 @@
 import json
 import os
+from datetime import datetime
+import random
 
 FILE_NAME = "accounts.json"
-global accounts
+
+attempts = 3
 
 if os.path.exists(FILE_NAME):
     with open(FILE_NAME, "r", encoding="utf-8") as f:
         accounts = json.load(f)
 else:
     accounts = {
-        "0000": [5100,123456,"Frisk", 8],
-        "1111": [5300,246810,"Chara", 11],
-        "2222": [5500,122555,"Kris", 15],
-        "3333": [6767,123456,"Formie", 13]
+        "0000": [5100.0, 123456, "Frisk", 8, 0.0, "2026-02-05 00:00:00"],
+        "1111": [5300.0, 246810, "Chara", 11, 0.0, "2026-02-05 00:00:00"],
+        "2222": [5500.0, 122555, "Kris", 15, 0.0, "2026-02-05 00:00:00"],
+        "3333": [6767.0, 123456, "Formie", 13, 0.0, "2026-02-05 00:00:00"]
     }
     with open(FILE_NAME, "w", encoding="utf-8") as f:
         json.dump(accounts, f, indent=4)
 
 choice = 0
-balance = 0
+balance = 0.0
 logged_in = False
-globalUser = ''
+globalUser = ""
 globalAge = 0
+bank_ID = None
+depositt = 0.0
+interest = random.randint(3, 25)
 
-print("Welcome to Grilby's ATM!")
-print("How may I help you? - Grilby's")
+print("\nWelcome to the ATM!")
+
+
+def save():
+    with open(FILE_NAME, "w", encoding="utf-8") as f:
+        json.dump(accounts, f, indent=4)
+
+
+def get_bank_id_by_name(name):
+    for bank_id, data in accounts.items():
+        if data[2].lower() == name.lower():
+            return bank_id
+    return None
+
+
+def days_since_creation():
+    global balance, interest
+    created_str = accounts[bank_ID][5]
+    created_date = datetime.strptime(created_str, "%Y-%m-%d %H:%M:%S")
+    delta = datetime.now() - created_date
+    full_days = delta.days
+
+    if full_days > 0:
+        interest = random.randint(3, 25)
+        balance += balance * ((interest / 100) * full_days)
+        accounts[bank_ID][0] = balance
+        save()
 
 def caseSwitch():
     if choice == 1:
@@ -32,16 +63,17 @@ def caseSwitch():
     elif choice == 2:
         login_page()
     elif choice == 3:
-        print(accounts)
-        welcome_page()
+        print("Goodbye!")
+        exit()
     else:
         print("\nIndex out of range!\n")
         welcome_page()
 
+
 def welcome_page():
     global choice
     print("\nOptions")
-    print("\n1. Register")
+    print("1. Register")
     print("2. Login")
     print("3. Exit")
     while True:
@@ -52,191 +84,256 @@ def welcome_page():
         except ValueError:
             print("\nPlease input an integer only!\n")
 
+
 def login_page():
-    global logged_in, globalUser, globalAge, balance
+    global logged_in, globalUser, globalAge, balance, bank_ID, depositt, attempts
     print("\nLogin Page")
     userInput = input("Enter your username or bank ID: ")
-    passInput = int(input("Enter your password: "))
-    for user, data in accounts.items():
-        if (userInput == data[2] or userInput == str(user)) and passInput == data[1]:
-            print(f"\nLogged in as {data[2]}\n")
+    valid = False
+    while True:
+        try:
+            passInput = int(input("Enter your PIN: "))
+            break
+        except ValueError:
+            print("Please enter numbers only!")
+
+    for b_id, data in accounts.items():
+        if (userInput == data[2] or userInput == b_id) and passInput == data[1]:
             logged_in = True
             globalUser = data[2]
             globalAge = data[3]
-            balance = data[0]
-            profile()
-            return
-    print("\nIncorrect input! Either the account doesn't exist or the credentials are wrong.\n")
-    welcome_page()
+            balance = float(data[0])
+            depositt = float(data[4])
+            bank_ID = b_id
+            attempts = 3
+            valid = True
+
+    if valid:
+        days_since_creation()
+        profile()
+    else:
+        attempts -= 1
+        print(f"\nIncorrect input! {attempts} attempts left.")
+        if attempts == 0:
+            print("Too many failed attempts. Exiting.")
+            exit()
+        login_page()
 
 def profile():
-    print(f"Welcome {globalUser}!\n")
-    print(f"Total Balance: ₱{balance}")
+    global logged_in, interest
+    print(f"\nWelcome {globalUser}!\n")
+    print(f"Total Wallet: ₱{balance:.2f}")
     print(f"Age: {globalAge}")
+    print(f"Total Deposit: ₱{depositt:.2f}")
+    print(f"Date created: {accounts[bank_ID][5]}")
     print("Options")
     print("1. Pay")
     print("2. Change details")
-    print("3. Delete account...")
+    print("3. Delete account")
+    print("4. Check interest deposit")
+    print("5. Deposit")
+    print("6. Withdraw")
+    print("7. Log-Out")
     while True:
-        try: 
+        try:
             userInput = int(input("Enter index: "))
             break
         except ValueError:
             print("\nPlease input an integer only!\n")
-    match userInput:
-        case 1:
-            pay_bills()
-        case 2:
-            change_details()
-        case 3:
-            delete_account()
-        case _:
-            print("\nIndex out of range!")
-            welcome_page()
+
+    if userInput == 1:
+        pay_bills()
+    elif userInput == 2:
+        change_details()
+    elif userInput == 3:
+        delete_account()
+    elif userInput == 4:
+        interest = random.randint(3, 25)
+        future_balance = depositt + (depositt * interest / 100)
+        print(f"Future Balance for {globalUser} after 1 day at {interest}% interest: ₱{future_balance:.2f}")
+        profile()
+    elif userInput == 5:
+        deposit()
+    elif userInput == 6:
+        withdraw()
+    elif userInput == 7:
+        save()
+        logged_in = False
+        welcome_page()
+    else:
+        profile()
+
+
+def deposit():
+    global balance, depositt
+    while True:
+        try:
+            amount = float(input("Enter amount to deposit: "))
+            if amount > balance:
+                print("You can't deposit more than your wallet!")
+            elif amount <= 0:
+                print("Enter a positive amount!")
+            else:
+                break
+        except ValueError:
+            print("Enter a valid number!")
+
+    balance -= amount
+    depositt += amount
+    accounts[bank_ID][0] = balance
+    accounts[bank_ID][4] = depositt
+    save()
+    profile()
+
+
+def withdraw():
+    global balance, depositt
+    while True:
+        try:
+            amount = float(input("Enter amount to withdraw: "))
+            if amount > depositt:
+                print("You can't withdraw more than your deposits!")
+            elif amount <= 0:
+                print("Enter a positive amount!")
+            else:
+                break
+        except ValueError:
+            print("Enter a valid number!")
+
+    depositt -= amount
+    balance = amount
+    accounts[bank_ID][4] = depositt
+    accounts[bank_ID][0] = balance
+    save()
+    profile()
+
 
 def pay_bills():
     global balance
-    print(f"Balance: ₱{balance}")
-    print("Pay your bills for these things!")
-    print("\n1. CEBICO (₱3500)")
-    print("2. Siwassco (₱500)")
+    print(f"Balance: ₱{balance:.2f}")
+    print("Pay your bills for these options!")
+    print("1. ZANECO (₱3500)")
+    print("2. Water (₱500)")
     print("3. Groceries (₱2500)")
+    print("4. PLDT (₱2000)")
+    print("5. Withdraw")
+    print("6. Deposit")
     while True:
-        try: 
-            userInput = int(input("Enter index: "))
+        try:
+            choice_bill = int(input("Enter index: "))
             break
         except ValueError:
-            print("\nPlease input an integer only!\n")
+            print("Please input an integer!")
+
     cost = 0
-    if userInput == 1: 
-        cost = 3500
-    elif userInput == 2: 
-        cost = 500
-    elif userInput == 3: 
-        cost = 2500
+    if choice_bill == 1:
+        cost = 3500.0
+    elif choice_bill == 2:
+        cost = 500.0
+    elif choice_bill == 3:
+        cost = 2500.0
+    elif choice_bill == 4:
+        cost = 2000.0
+    elif choice_bill == 5:
+        withdraw()
+        return
+    elif choice_bill == 6:
+        deposit()
+        return
     else:
-        print("\nIndex out of range!\n")
         profile()
         return
+
     if balance >= cost:
         balance -= cost
-        for bank_id, data in accounts.items():
-            if data[2] == globalUser:
-                data[0] = balance
-                break
-        with open(FILE_NAME, "w", encoding="utf-8") as f:
-            json.dump(accounts, f, indent=4)
-        print(f"\nSuccessfully paid! Your total balance is now ₱{balance}!\n")
+        accounts[bank_ID][0] = balance
+        save()
+        print(f"Successfully paid! Your total balance is now ₱{balance:.2f}.")
     else:
-        print("\nYour balance is too low!\n")
+        print("Insufficient balance!")
     profile()
 
+
 def registration_page():
-    global result
-    userInput = input("Enter your username: ")
-    pinInput = input("Enter your PIN: ")
-    if len(str(pinInput)) != 6:
-        print("Your PIN must be 6 digits long!")
+    global attempts
+    attempts = 3
+    username = input("Enter your username: ")
+    if any(data[2].lower() == username.lower() for data in accounts.values()):
+        print("Username already exists!")
         registration_page()
+        return
+
+    pinInput = input("Enter your PIN (6 digits): ")
+    if not pinInput.isdigit() or len(pinInput) != 6:
+        print("Invalid PIN!")
+        registration_page()
+        return
+
     while True:
         try:
             ageInput = int(input("Enter your age: "))
             break
         except ValueError:
-            print("Please input an integer only!")
+            print("Enter an integer for age!")
+
     if ageInput <= 12:
-        print("You are too young to use our services!")
+        print("Too young to register!")
         welcome_page()
         return
-    result = randomize_bank_id()
-    print(f"Account added with bank ID {result}.")
-    accounts[result] = [0, int(pinInput), userInput, ageInput]
-    with open(FILE_NAME, "w", encoding="utf-8") as f:
-        json.dump(accounts, f, indent=4)
+
+    next_id = str(max(int(k) for k in accounts.keys()) + 1).zfill(4)
+    created_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    accounts[next_id] = [5000.0, int(pinInput), username, ageInput, 0.0, created_date]
+    print(f"Account created! Bank ID: {next_id}, Date: {created_date}")
+    save()
     welcome_page()
 
-def randomize_bank_id():
-    last_id = max(accounts.keys())      
-    next_id = str(int(last_id) + 1).zfill(4)
-    return next_id
 
 def change_details():
-    global accounts, globalUser
-
-    account_id = None
-    for bank_id, data in accounts.items():
-        if data[2] == globalUser:
-            account_id = bank_id
-            break
-
-    if account_id is None:
-        print("Account not found!")
+    global globalUser
+    oldPin = input("Enter current PIN to proceed: ")
+    if not oldPin.isdigit() or int(oldPin) != accounts[bank_ID][1]:
+        print("Incorrect PIN!")
+        profile()
         return
 
-    changeUser = input("Enter new username (skip to leave unchanged): ")
-    if changeUser != "":
-        accounts[account_id][2] = changeUser
-        globalUser = changeUser
+    newUser = input("Enter new username (skip to leave unchanged): ")
+    if newUser != "":
+        accounts[bank_ID][2] = newUser
+        globalUser = newUser
 
-    while True:
-        try:
-            changeAge = input("Enter new age (skip to leave unchanged): ")
-            if changeAge != "":
-                changeAge = int(changeAge)
-                accounts[account_id][3] = changeAge
-            break
-        except ValueError:
-            print("Please input an integer only!")
+    newAge = input("Enter new age (skip to leave unchanged): ")
+    if newAge.isdigit():
+        accounts[bank_ID][3] = int(newAge)
 
-    while True:
-        try:
-            changePin = input("Enter new PIN (skip to leave unchanged): ")
-            if changePin != "":
-                changePin = int(changePin)
-                accounts[account_id][1] = changePin
-            elif len(str(changePin)) != 6:
-                print("Your PIN must be 6 digits long!")
-            break
-            
-        except ValueError:
-            print("Please enter an integer only!")
+    newPin = input("Enter new PIN (6 digits, skip to leave unchanged): ")
+    if newPin.isdigit() and len(newPin) == 6:
+        accounts[bank_ID][1] = int(newPin)
 
-    with open(FILE_NAME, "w", encoding="utf-8") as f:
-        json.dump(accounts, f, indent=4)
-
-    print("\nDetails changed successfully!\n")
+    save()
     profile()
 
 
 def delete_account():
-    global accounts, logged_in, globalUser, globalAge, balance
+    global logged_in, globalUser, globalAge, balance
+    pinInput = input("Enter your PIN to confirm: ")
+    if str(accounts[bank_ID][1]) == pinInput:
+        del accounts[bank_ID]
+        save()
+        logged_in = False
+        globalUser = ""
+        globalAge = 0
+        balance = 0.0
+        print("Account deleted successfully.")
+        welcome_page()
+    else:
+        print("Incorrect PIN!")
+        profile()
 
-    while True:
-        confirm = input("Are you sure you want to delete this account? (Y/N): ")
-        if confirm.lower() == "y":
-            pinInput = input("Enter your PIN to confirm: ")
-            account_to_delete = None
-            for bank_id, data in accounts.items():
-                if data[2] == globalUser:
-                    account_to_delete = bank_id
-                    if str(data[1]) == pinInput:
-                        print(f"Account {globalUser} has been deleted!")
-                        del accounts[bank_id]
-                        with open(FILE_NAME, "w", encoding="utf-8") as f:
-                            json.dump(accounts, f, indent=4)
-                        logged_in = False
-                        globalUser = ''
-                        globalAge = 0
-                        balance = 0
-                        welcome_page()
-                        return
-                    else:
-                        print("Incorrect PIN!")
-                        return
-            print("Account not found!")
-            return
-        elif confirm.lower() == "n":
-            profile()
-            return
+
+def randomize_bank_id():
+    last_id = max(accounts.keys())
+    return str(int(last_id) + 1).zfill(4)
+
 
 welcome_page()
