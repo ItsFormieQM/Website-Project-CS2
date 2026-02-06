@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import datetime
-import random
 
 FILE_NAME = "accounts.json"
 
@@ -12,10 +11,10 @@ if os.path.exists(FILE_NAME):
         accounts = json.load(f)
 else:
     accounts = {
-        "0000": [5100.0, 123456, "Frisk", 8, 0.0, "2026-02-05 00:00:00"],
-        "1111": [5300.0, 246810, "Chara", 11, 0.0, "2026-02-05 00:00:00"],
-        "2222": [5500.0, 122555, "Kris", 15, 0.0, "2026-02-05 00:00:00"],
-        "3333": [6767.0, 123456, "Formie", 13, 0.0, "2026-02-05 00:00:00"]
+        "0000": [5100.0, 123456, "Frisk", 8, 0.0, "2026-02-05 00:00:00", 5],
+        "1111": [5300.0, 246810, "Chara", 11, 0.0, "2026-02-05 00:00:00", 7],
+        "2222": [5500.0, 122555, "Kris", 15, 0.0, "2026-02-05 00:00:00", 10],
+        "3333": [6767.0, 123456, "Formie", 13, 0.0, "2026-02-05 00:00:00", 12]
     }
     with open(FILE_NAME, "w", encoding="utf-8") as f:
         json.dump(accounts, f, indent=4)
@@ -27,7 +26,7 @@ globalUser = ""
 globalAge = 0
 bank_ID = None
 depositt = 0.0
-interest = random.randint(3, 25)
+interest = 5
 
 print("\nWelcome to the ATM!")
 
@@ -44,17 +43,23 @@ def get_bank_id_by_name(name):
     return None
 
 
-def days_since_creation():
-    global balance, interest
-    created_str = accounts[bank_ID][5]
-    created_date = datetime.strptime(created_str, "%Y-%m-%d %H:%M:%S")
-    delta = datetime.now() - created_date
-    full_days = delta.days
 
-    if full_days > 0:
-        interest = random.randint(3, 25)
-        balance += balance * ((interest / 100) * full_days)
-        accounts[bank_ID][0] = balance
+def days_since_creation():
+    global balance, depositt, interest
+
+    created_str = accounts[bank_ID][5]
+    interest_rate = accounts[bank_ID][6]
+
+    depositt = accounts[bank_ID][4]
+
+    created_date = datetime.strptime(created_str, "%Y-%m-%d %H:%M:%S")
+    days_passed = (datetime.now() - created_date).days
+
+    if days_passed > 0:
+        interest = depositt * (interest_rate / 100) * days_passed
+        depositt += interest
+
+        accounts[bank_ID][4] = depositt
         save()
 
 def caseSwitch():
@@ -119,21 +124,28 @@ def login_page():
             exit()
         login_page()
 
+def format_date(date_str):
+    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+    return f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+
 def profile():
-    global logged_in, interest
+    if bank_ID is None:
+        welcome_page()
+        return
     print(f"\nWelcome {globalUser}!\n")
-    print(f"Total Wallet: ₱{balance:.2f}")
+    print(f"Wallet: ₱{balance:.2f}")
     print(f"Age: {globalAge}")
-    print(f"Total Deposit: ₱{depositt:.2f}")
-    print(f"Date created: {accounts[bank_ID][5]}")
+    print(f"Deposits: ₱{depositt:.2f}")
+    print(f"Interest Rate: {accounts[bank_ID][6]}%")
+    print("Date Created:", format_date(accounts[bank_ID][5]))
     print("Options")
-    print("1. Pay")
+    print("1. Pay Bills")
     print("2. Change details")
     print("3. Delete account")
-    print("4. Check interest deposit")
-    print("5. Deposit")
-    print("6. Withdraw")
-    print("7. Log-Out")
+    print("4. Deposit")
+    print("5. Withdraw")
+    print("6. Log-Out")
+    print("7. Help")
     while True:
         try:
             userInput = int(input("Enter index: "))
@@ -148,21 +160,23 @@ def profile():
     elif userInput == 3:
         delete_account()
     elif userInput == 4:
-        interest = random.randint(3, 25)
-        future_balance = depositt + (depositt * interest / 100)
-        print(f"Future Balance for {globalUser} after 1 day at {interest}% interest: ₱{future_balance:.2f}")
-        profile()
-    elif userInput == 5:
         deposit()
-    elif userInput == 6:
+    elif userInput == 5:
         withdraw()
-    elif userInput == 7:
+    elif userInput == 6:
         save()
         logged_in = False
         welcome_page()
+    elif userInput == 7:
+        help_sec()
     else:
         profile()
 
+def help_sec():
+    print("\nHelp Section\n")
+    print("1. Deposit money to gain interest.")
+    print("2. You can loan money but to make it not a hassle when its due, set autopay on and it automically pays every loan when due every time you log in! (Note that having insufficient balance will instead make autopay use your deposit which in turn deducts your interest.")
+    profile()
 
 def deposit():
     global balance, depositt
@@ -201,7 +215,7 @@ def withdraw():
             print("Enter a valid number!")
 
     depositt -= amount
-    balance = amount
+    balance += amount
     accounts[bank_ID][4] = depositt
     accounts[bank_ID][0] = balance
     save()
@@ -257,6 +271,7 @@ def pay_bills():
 def registration_page():
     global attempts
     attempts = 3
+
     username = input("Enter your username: ")
     if any(data[2].lower() == username.lower() for data in accounts.values()):
         print("Username already exists!")
@@ -277,14 +292,29 @@ def registration_page():
             print("Enter an integer for age!")
 
     if ageInput <= 12:
-        print("Too young to register!")
+        print("Your too young!")
         welcome_page()
         return
 
     next_id = str(max(int(k) for k in accounts.keys()) + 1).zfill(4)
     created_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    accounts[next_id] = [5000.0, int(pinInput), username, ageInput, 0.0, created_date]
-    print(f"Account created! Bank ID: {next_id}, Date: {created_date}")
+    interest_rate = interest
+
+    accounts[next_id] = [
+        500.0,
+        int(pinInput),
+        username,
+        ageInput,
+        0.0,
+        created_date,
+        interest_rate
+    ]
+
+    print(f"\nAccount Created!")
+    print(f"Bank ID: {next_id}")
+    print(f"Date Created: {format_date(created_date)}")
+    print(f"Interest Rate: {interest_rate}%")
+
     save()
     welcome_page()
 
